@@ -1,0 +1,71 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pubsub
+  namespace: satori
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: pubsub
+  template:
+    metadata:
+      labels:
+        app: pubsub
+    spec:
+      initContainers:
+      - name: copy-files
+        image: us-west3-docker.pkg.dev/jovial-parsec-428705-r8/satori/pubsub:v2
+        command: ["/bin/sh", "-c"]
+        args:
+        - |
+          set -ex
+          echo "Starting init container..."
+          
+          if [ ! -d "/Satori/Central" ]; then
+            echo "Error: /Satori/Central directory does not exist in the image"
+            exit 1
+          fi
+          
+          if [ -z "$(ls -A /mnt/persistent/Central)" ]; then
+            echo "Persistent volume is empty. Copying files..."
+            mkdir -p /mnt/persistent/Central
+            cp -Rv /Satori/Central/* /mnt/persistent/Central/
+          else
+            echo "Files already exist in persistent volume. Skipping copy."
+          fi
+          
+          echo "Setting permissions..."
+          find /mnt/persistent/Central -type d -exec chmod 755 {} + || echo "Warning: Could not set directory permissions"
+          find /mnt/persistent/Central -type f -exec chmod 644 {} + || echo "Warning: Could not set file permissions"
+          
+          if [ -f "/mnt/persistent/Central/run.bash" ]; then
+            echo "Making run.bash executable..."
+            chmod +x /mnt/persistent/Central/run.bash || echo "Warning: Could not make run.bash executable"
+          else
+            echo "Error: run.bash not found in /mnt/persistent/Central/"
+            exit 1
+          fi
+          
+          echo "Init container tasks completed successfully"
+        volumeMounts:
+        - name: repos-pubsub
+          mountPath: /mnt/persistent
+      containers:
+      - name: pubsub
+        image: us-west3-docker.pkg.dev/jovial-parsec-428705-r8/satori/pubsub:v2
+        command: ["/bin/bash"]
+        args: ["/mnt/persistent/Central/run.bash"]
+        ports:
+        - containerPort: 3000
+        volumeMounts:
+        - name: repos-pubsub
+          mountPath: /mnt/persistent
+        - name: tmp-pubsub
+          mountPath: /tmp
+      volumes:
+      - name: repos-pubsub
+        persistentVolumeClaim:
+          claimName: repos-pubsub-pvc
+      - name: tmp-pubsub
+        emptyDir: {}

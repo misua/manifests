@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pubsub
+  namespace: satori
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: pubsub
+  template:
+    metadata:
+      labels:
+        app: pubsub
+    spec:
+      containers:
+      - name: pubsub
+        image: us-west3-docker.pkg.dev/jovial-parsec-428705-r8/satori/pubsub:v2
+        ports:
+        - containerPort: 3000
+        volumeMounts:
+        - name: repos-pubsub
+          mountPath: /mnt/persistent
+        - name: tmp-pubsub
+          mountPath: /tmp
+      volumes:
+      - name: repos-pubsub
+        persistentVolumeClaim:
+          claimName: repos-pubsub-pvc
+      - name: tmp-pubsub
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pubsub-service
+  namespace: satori
+spec:
+  selector:
+    app: pubsub
+  ports:
+    - protocol: TCP
+      port: 3000
+      targetPort: 3000
+  type: ClusterIP

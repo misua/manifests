@@ -1,0 +1,16 @@
+apiVersion: v1
+   kind: Pod
+   metadata:
+     name: debug-pod
+   spec:
+     volumes:
+     - name: volume-to-check
+       persistentVolumeClaim:
+         claimName: <your-pvc-name>
+     containers:
+     - name: debugger
+       image: busybox
+       command: ['sleep', '3600']
+       volumeMounts:
+       - name: volume-to-check
+         mountPath: /mnt/volume-to-check
